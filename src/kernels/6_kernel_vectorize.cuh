@@ -63,11 +63,18 @@ __global__ void sgemmVectorize(int M, int N, int K, float alpha, float *A,
     for (uint dotIdx = 0; dotIdx < BK; ++dotIdx) {
       // block into registers
       for (uint i = 0; i < TM; ++i) {
+        // 本例通过将A转置存到As，实现了同一线程要处理的一列TM数据内存连续
+        // 这可触发编译器向量化加载到寄存器的优化，且没有bank conflict
         regM[i] = As[dotIdx * BM + threadRow * TM + i];
       }
       for (uint i = 0; i < TN; ++i) {
+        // 此处存在bank conflict，bank conflict的影响比连续内存向量化加载到寄存器更大？
         regN[i] = Bs[dotIdx * BN + threadCol * TN + i];
       }
+      /* 上述操作最终目的要实现：
+       * 1. A中一列连续TM个元素转存到regM寄存器中
+       * 2. B中一行连续TN个元素转存到regN寄存器中
+       */
       for (uint resIdxM = 0; resIdxM < TM; ++resIdxM) {
         for (uint resIdxN = 0; resIdxN < TN; ++resIdxN) {
           threadResults[resIdxM * TN + resIdxN] +=

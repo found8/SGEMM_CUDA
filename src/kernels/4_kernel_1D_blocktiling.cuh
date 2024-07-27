@@ -45,7 +45,7 @@ __global__ void sgemm1DBlocktiling(int M, int N, int K, float alpha,
   const uint innerRowB = threadIdx.x / BN;
 
   // allocate thread-local cache for results in registerfile
-  float threadResults[TM] = {0.0};
+  float threadResults[TM] = {0.0}; // 每个线程多个寄存器，实现计算多个C元素
 
   // outer loop over block tiles
   for (uint bkIdx = 0; bkIdx < K; bkIdx += BK) {
@@ -63,6 +63,10 @@ __global__ void sgemm1DBlocktiling(int M, int N, int K, float alpha,
       // we make the dotproduct loop the outside loop, which facilitates
       // reuse of the Bs entry, which we can cache in a tmp var.
       float tmpB = Bs[dotIdx * BN + threadCol];
+      /* threadCol随线程变化，从而读取B不同列的数据
+       * threadRow不随线程变化，从而读取A同一行数据
+       * 所以本例实现了每个线程计算一列C
+       */
       for (uint resIdx = 0; resIdx < TM; ++resIdx) {
         threadResults[resIdx] +=
             As[(threadRow * TM + resIdx) * BK + dotIdx] * tmpB;

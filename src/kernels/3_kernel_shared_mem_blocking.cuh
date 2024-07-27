@@ -30,6 +30,11 @@ __global__ void sgemm_shared_mem_block(int M, int N, int K, float alpha,
   B += cCol * BLOCKSIZE;                        // row=0, col=cCol
   C += cRow * BLOCKSIZE * N + cCol * BLOCKSIZE; // row=cRow, col=cCol
 
+  /* 每个线程一个寄存器，只计算一个C元素
+   * 但计算同一行C的线程需分别读取同一行A，计算同一列C的线程需分别读取同一列B
+   * 多线程share memory可减少同一行A或同一行B从GMEM读取次数
+   * 多次从SMEM中读取可实现比GMEM更高的速度
+   */
   float tmp = 0.0;
   for (int bkIdx = 0; bkIdx < K; bkIdx += BLOCKSIZE) {
     // Have each thread load one of the elements in A & B

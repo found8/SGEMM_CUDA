@@ -50,10 +50,13 @@ __global__ void __launch_bounds__((BM * BN) / (TM * TN), 1)
   const uint strideB = numThreadsBlocktile / BN;
 
   // allocate thread-local cache for results in registerfile
-  float threadResults[TM * TN] = {0.0};
+  float threadResults[TM * TN] = {0.0}; // 每个线程使用二维寄存器，实现计算二维块分片
   // register caches for As and Bs
   float regM[TM] = {0.0};
   float regN[TN] = {0.0};
+  /* 计算一块TM*TN的结果需要两层循环，且每个A和B元素都需要多次使用
+   * 将share memory中数据读入寄存器可实现加速
+   */
 
   // outer-most loop over block tiles
   for (uint bkIdx = 0; bkIdx < K; bkIdx += BK) {
@@ -75,12 +78,18 @@ __global__ void __launch_bounds__((BM * BN) / (TM * TN), 1)
     // calculate per-thread results
     for (uint dotIdx = 0; dotIdx < BK; ++dotIdx) {
       // block into registers
+      // 随i循环实现将As中TM行的一列元素加载到寄存器
       for (uint i = 0; i < TM; ++i) {
         regM[i] = As[(threadRow * TM + i) * BK + dotIdx];
       }
+      // 随i循环实现将As中TN列的一行元素加载到寄存器
       for (uint i = 0; i < TN; ++i) {
         regN[i] = Bs[dotIdx * BN + threadCol * TN + i];
       }
+      /* 外层循环确定一个A元素，与内层循环每个B元素相乘
+       * 两层循环完成后，实现二维块分片的一次累加
+       * 需要把所有K都累加完才完成二维块分片的计算
+       */
       for (uint resIdxM = 0; resIdxM < TM; ++resIdxM) {
         for (uint resIdxN = 0; resIdxN < TN; ++resIdxN) {
           threadResults[resIdxM * TN + resIdxN] +=

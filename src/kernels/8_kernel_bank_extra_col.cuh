@@ -71,6 +71,7 @@ __global__ void sgemmResolveBankExtraCol(int M, int N, int K, float alpha,
         regM[i] = As[dotIdx * BM + threadRow * TM + i];
       }
       for (uint i = 0; i < TN; ++i) {
+        // BN太大？padding无法解决bank conflict？
         regN[i] = Bs[dotIdx * (BN + extraCols) + threadCol * TN + i];
       }
       for (uint resIdxM = 0; resIdxM < TM; ++resIdxM) {
